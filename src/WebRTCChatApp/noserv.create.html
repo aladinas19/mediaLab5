@@ -1,65 +1,72 @@
 <!doctype html>
-<html>
+<html lang="lt">
 <head>
   <meta charset="utf-8">
-  <title> CREATE WebRTC channel </title>
-  <link href="noserv.css" rel="stylesheet">
+  <title>CREATE WebRTC channel</title>
+  <link rel="stylesheet" href="./style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-
-  <style>
-    .video-wrap {margin: 6px 3px; display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;}
-    video, canvas {background:#111; border:1px solid #dfdfdf; border-radius:8px;}
-    video {width: 260px; height: 195px;}
-    canvas {width: 260px; height: 195px;}
-    .btns {margin: 6px 3px; display:flex; gap:8px; flex-wrap:wrap;}
-    .note {margin: 0 3px; font-size:12px; color:#666;}
-  </style>
 </head>
 <body>
 
-<h2> CREATE WebRTC channel <span id="status"> init </span></h2>
+<main class="container">
+  <div class="card">
+    <h2>CREATE WebRTC channel <span class="badge" id="status">init</span></h2>
 
-<h3> 1.CREATE Offer's SDP </h3>
-<textarea id="creater-sdp"></textarea>
+    <h3>1) CREATE Offer's SDP</h3>
+    <textarea id="creater-sdp"></textarea>
 
-<h3> 4.GET Participant's SDP <button id="start">start</button></h3>
-<textarea id="joiner-sdp" placeholder="HERE COPY AND PASTE [3.Participant'S SDP]"></textarea>
+    <h3>4) GET Participant's SDP</h3>
+    <div class="row">
+      <button id="start" type="button">Start</button>
+    </div>
+    <textarea id="joiner-sdp" placeholder="HERE COPY AND PASTE [3.Participant'S SDP]"></textarea>
 
-<h3> VIDEO STREAM (Option A) </h3>
-<div class="btns">
-  <button id="btnCam" type="button">Start camera</button>
-  <button id="btnSendFrames" type="button" disabled>Start sending frames</button>
-  <button id="btnStopFrames" type="button" disabled>Stop sending frames</button>
-</div>
+    <hr />
 
-<p class="note">
-  Kadrai siunčiami per DataChannel kaip base64 JPEG (maža rezoliucija, ribotas FPS).
-</p>
+    <h3>VIDEO STREAM (Option A)</h3>
+    <div class="row">
+      <button id="btnCam" type="button">Start camera</button>
+      <button id="btnSendFrames" type="button" disabled>Start sending frames</button>
+      <button id="btnStopFrames" type="button" disabled>Stop sending frames</button>
+    </div>
 
-<div class="video-wrap">
-  <div>
-    <div class="note">Local camera</div>
-    <video id="localVideo" playsinline autoplay muted></video>
+    <p class="note">
+      Kadrai siunčiami per DataChannel kaip base64 JPEG (maža rezoliucija, ribotas FPS).
+    </p>
+
+    <div class="media-grid">
+      <div>
+        <div class="note">Local camera</div>
+        <video id="localVideo" playsinline autoplay muted></video>
+      </div>
+      <div>
+        <div class="note">Frame canvas (siuntimui)</div>
+        <canvas id="frameCanvas" width="320" height="240"></canvas>
+      </div>
+    </div>
+
+    <hr />
+
+    <h3>CHAT</h3>
+    <div id="chat">
+      <div id="chat-screen-wp">
+        <div id="chat-screen"></div>
+      </div>
+      <div class="row">
+        <input id="msg" disabled placeholder="Žinutė..." />
+        <button id="send" disabled type="button">send</button>
+      </div>
+    </div>
   </div>
-  <div>
-    <div class="note">Frame canvas (siuntimui)</div>
-    <canvas id="frameCanvas" width="320" height="240"></canvas>
-  </div>
-</div>
-
-<h3> CHAT </h3>
-<div id="chat">
-  <div id="chat-screen-wp">
-    <div id="chat-screen"></div>
-  </div>
-  <div id="ct"><input id="msg" disabled><button id="send" disabled>send</button></div>
-</div>
+</main>
 
 <script>
+// ====== WebRTC bazė ======
 var sdpConstraints = { optional: [{RtpDataChannels: true}]  };
 var pc = new RTCPeerConnection(null);
 var dc;
 
+// ====== Video/Frame siuntimo kintamieji ======
 var localStream = null;
 var sending = false;
 var sendTimer = null;
@@ -72,10 +79,11 @@ var btnCam = document.getElementById("btnCam");
 var btnSendFrames = document.getElementById("btnSendFrames");
 var btnStopFrames = document.getElementById("btnStopFrames");
 
+// FPS ir kokybė
 var SEND_INTERVAL_MS = 150; // ~6-7 fps
 var JPEG_QUALITY = 0.6;     // 0..1
 
-pc.oniceconnectionstatechange = function(e) {
+pc.oniceconnectionstatechange = function() {
   var state = pc.iceConnectionState;
   $('#status').html(state);
 
@@ -88,7 +96,7 @@ pc.onicecandidate = function(e) {
 };
 
 function createOfferSDP() {
-  dc = pc.createDataChannel("data"); 
+  dc = pc.createDataChannel("data");
   pc.createOffer().then(function(e) {
     pc.setLocalDescription(e);
   });
@@ -96,7 +104,6 @@ function createOfferSDP() {
   dc.onopen = function() {
     $("textarea").attr("disabled", true);
     addMSG("CONNECTED!", "info");
-
     btnSendFrames.disabled = false;
   };
 
@@ -113,6 +120,7 @@ function start() {
 
 createOfferSDP();
 
+// ====== Chat ======
 var sendMSG = function() {
   var value = $("#msg").val();
   if (value && dc && dc.readyState === "open") {
@@ -134,6 +142,7 @@ $("#start").click(function(){ start(); });
 $("#msg").keypress(function(e) { if(e.which == 13) { sendMSG(); } });
 $("#send").click(sendMSG);
 
+// ====== Kamera + frame siuntimas ======
 btnCam.addEventListener("click", async function () {
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -187,14 +196,10 @@ function sendOneFrame() {
   if (!sending) return;
   if (!dc || dc.readyState !== "open") return;
 
-  if (dc.bufferedAmount > 2_000_000) {
-    return;
-  }
+  if (dc.bufferedAmount > 2_000_000) return;
 
   frameCtx.drawImage(localVideo, 0, 0, frameCanvas.width, frameCanvas.height);
-
   var dataUrl = frameCanvas.toDataURL("image/jpeg", JPEG_QUALITY);
-
   dc.send("FRAME|" + dataUrl);
 }
 </script>

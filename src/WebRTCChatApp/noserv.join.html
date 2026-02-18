@@ -1,51 +1,49 @@
 <!doctype html>
-<html>
+<html lang="lt">
 <head>
   <meta charset="utf-8">
-  <title> JOIN WebRTC channel </title>
-  <link href="noserv.css" rel="stylesheet">
+  <title>JOIN WebRTC channel</title>
+  <link rel="stylesheet" href="./style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-
-  <style>
-    .frame-wrap {margin: 8px 3px;}
-    #remoteImage {
-      width: 260px;
-      height: 195px;
-      background: #111;
-      border: 1px solid #dfdfdf;
-      border-radius: 8px;
-      display: block;
-      object-fit: cover;
-    }
-    .note {margin: 0 3px; font-size:12px; color:#666;}
-  </style>
 </head>
 <body>
 
-<h2> JOIN WebRTC channel <span id="status"> init </span></h2>
+<main class="container">
+  <div class="card">
+    <h2>JOIN WebRTC channel <span class="badge" id="status">init</span></h2>
 
-<h3> 2.GET Creator's SDP <button id="start">start</button></h3>
-<textarea id="creater-sdp" placeholder="HERE COPY AND PASTE [1.Creator'S SDP]"></textarea>
+    <h3>2) GET Creator's SDP</h3>
+    <div class="row">
+      <button id="start" type="button">Start</button>
+    </div>
+    <textarea id="creater-sdp" placeholder="HERE COPY AND PASTE [1.Creator'S SDP]"></textarea>
 
-<h3> 3.CREATE Participant's SDP </h3>
-<textarea id="joiner-sdp"></textarea>
+    <h3>3) CREATE Participant's SDP</h3>
+    <textarea id="joiner-sdp"></textarea>
 
-<h3> VIDEO STREAM (Option A) </h3>
-<div class="frame-wrap">
-  <div class="note">Gautas kadras (per DataChannel)</div>
-  <img id="remoteImage" alt="Remote frame will appear here" />
-  <p class="note">
-    Jei vaizdas neatsiranda – įsitikink, kad Create pusėje paspaudei „Start sending frames“.
-  </p>
-</div>
+    <hr />
 
-<h3> CHAT </h3>
-<div id="chat">
-  <div id="chat-screen-wp">
-    <div id="chat-screen"></div>
+    <h3>VIDEO STREAM (Option A)</h3>
+    <div class="note">Gautas kadras (per DataChannel)</div>
+    <img id="remoteImage" alt="Remote frame will appear here" />
+    <p class="note">
+      Jei vaizdas neatsiranda – Create pusėje paspausk „Start camera“ ir „Start sending frames“.
+    </p>
+
+    <hr />
+
+    <h3>CHAT</h3>
+    <div id="chat">
+      <div id="chat-screen-wp">
+        <div id="chat-screen"></div>
+      </div>
+      <div class="row">
+        <input id="msg" disabled placeholder="Žinutė..." />
+        <button id="send" disabled type="button">send</button>
+      </div>
+    </div>
   </div>
-  <div id="ct"><input id="msg" disabled><button id="send" disabled>send</button></div>
-</div>
+</main>
 
 <script>
 var sdpConstraints = { optional: [{RtpDataChannels: true}]  };
@@ -54,7 +52,7 @@ var dc;
 
 var remoteImage = document.getElementById("remoteImage");
 
-pc.oniceconnectionstatechange = function(e) {
+pc.oniceconnectionstatechange = function() {
   var state = pc.iceConnectionState;
   $('#status').html(state);
 
