@@ -5,13 +5,48 @@
   <title> CREATE WebRTC channel </title>
   <link href="noserv.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+
+  <style>
+    .video-wrap {margin: 6px 3px; display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;}
+    video, canvas {background:#111; border:1px solid #dfdfdf; border-radius:8px;}
+    video {width: 260px; height: 195px;}
+    canvas {width: 260px; height: 195px;}
+    .btns {margin: 6px 3px; display:flex; gap:8px; flex-wrap:wrap;}
+    .note {margin: 0 3px; font-size:12px; color:#666;}
+  </style>
 </head>
 <body>
+
 <h2> CREATE WebRTC channel <span id="status"> init </span></h2>
+
 <h3> 1.CREATE Offer's SDP </h3>
 <textarea id="creater-sdp"></textarea>
+
 <h3> 4.GET Participant's SDP <button id="start">start</button></h3>
 <textarea id="joiner-sdp" placeholder="HERE COPY AND PASTE [3.Participant'S SDP]"></textarea>
+
+<h3> VIDEO STREAM (Option A) </h3>
+<div class="btns">
+  <button id="btnCam" type="button">Start camera</button>
+  <button id="btnSendFrames" type="button" disabled>Start sending frames</button>
+  <button id="btnStopFrames" type="button" disabled>Stop sending frames</button>
+</div>
+
+<p class="note">
+  Kadrai siunčiami per DataChannel kaip base64 JPEG (maža rezoliucija, ribotas FPS).
+</p>
+
+<div class="video-wrap">
+  <div>
+    <div class="note">Local camera</div>
+    <video id="localVideo" playsinline autoplay muted></video>
+  </div>
+  <div>
+    <div class="note">Frame canvas (siuntimui)</div>
+    <canvas id="frameCanvas" width="320" height="240"></canvas>
+  </div>
+</div>
+
 <h3> CHAT </h3>
 <div id="chat">
   <div id="chat-screen-wp">
@@ -19,38 +54,73 @@
   </div>
   <div id="ct"><input id="msg" disabled><button id="send" disabled>send</button></div>
 </div>
+
 <script>
-//var server       = { urls: "stun:stun.l.google.com:19302" };
 var sdpConstraints = { optional: [{RtpDataChannels: true}]  };
 var pc = new RTCPeerConnection(null);
 var dc;
 
+var localStream = null;
+var sending = false;
+var sendTimer = null;
+
+var localVideo = document.getElementById("localVideo");
+var frameCanvas = document.getElementById("frameCanvas");
+var frameCtx = frameCanvas.getContext("2d");
+
+var btnCam = document.getElementById("btnCam");
+var btnSendFrames = document.getElementById("btnSendFrames");
+var btnStopFrames = document.getElementById("btnStopFrames");
+
+var SEND_INTERVAL_MS = 150; // ~6-7 fps
+var JPEG_QUALITY = 0.6;     // 0..1
+
 pc.oniceconnectionstatechange = function(e) {
   var state = pc.iceConnectionState;
   $('#status').html(state);
+
   if (state == "connected") $("#msg, #send").attr("disabled", false);
 };
+
 pc.onicecandidate = function(e) {
   if (e.candidate) return;
   $("#creater-sdp").val(JSON.stringify(pc.localDescription));
-}
-
-function createOfferSDP() {
-  dc = pc.createDataChannel("chat");
-  pc.createOffer().then(function(e) {
-    pc.setLocalDescription(e)
-  });
-  dc.onopen = function(){$("textarea").attr("disabled",true);addMSG("CONNECTED!", "info")};
-  dc.onmessage = function(e) {
-    if (e.data) addMSG(e.data, "other");
-  }
 };
 
+function createOfferSDP() {
+  dc = pc.createDataChannel("data"); 
+  pc.createOffer().then(function(e) {
+    pc.setLocalDescription(e);
+  });
+
+  dc.onopen = function() {
+    $("textarea").attr("disabled", true);
+    addMSG("CONNECTED!", "info");
+
+    btnSendFrames.disabled = false;
+  };
+
+  dc.onmessage = function(e) {
+    if (e.data) addMSG(e.data, "other");
+  };
+}
+
 function start() {
-  var answerSDP = $('#joiner-sdp').val()
+  var answerSDP = $('#joiner-sdp').val();
   var answerDesc = new RTCSessionDescription(JSON.parse(answerSDP));
   pc.setRemoteDescription(answerDesc);
 }
+
+createOfferSDP();
+
+var sendMSG = function() {
+  var value = $("#msg").val();
+  if (value && dc && dc.readyState === "open") {
+    dc.send(value);
+    addMSG(value, "me");
+    $("#msg").val('');
+  }
+};
 
 var addMSG = function(msg, who) {
   var wrap = $("<div>").addClass("wrap").appendTo($("#chat-screen"));
@@ -58,21 +128,76 @@ var addMSG = function(msg, who) {
   $("<span>").html(who).addClass("who").appendTo(div);
   $("<span>").html(msg).addClass("msg").appendTo(div);
   $("#chat-screen-wp").scrollTop($("#chat-screen").height());
-}
+};
 
-createOfferSDP();
-
-var sendMSG = function() {
-  var value = $("#msg").val();
-  if (value) {
-    dc.send(value);
-    addMSG(value, "me");
-    $("#msg").val('');
-  }
-}
-$("#start").click(function(){start();});
-$("#msg").keypress(function(e) {if(e.which == 13) {sendMSG()}});
+$("#start").click(function(){ start(); });
+$("#msg").keypress(function(e) { if(e.which == 13) { sendMSG(); } });
 $("#send").click(sendMSG);
+
+btnCam.addEventListener("click", async function () {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      addMSG("getUserMedia nepalaikomas šioje naršyklėje", "info");
+      return;
+    }
+
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    localVideo.srcObject = localStream;
+    await localVideo.play();
+
+    addMSG("Kamera įjungta.", "info");
+
+    if (dc && dc.readyState === "open") btnSendFrames.disabled = false;
+  } catch (err) {
+    addMSG("Kamera neįsijungė: " + (err && err.message ? err.message : err), "info");
+  }
+});
+
+btnSendFrames.addEventListener("click", function () {
+  if (!localStream) {
+    addMSG("Pirma įjunk kamerą (Start camera).", "info");
+    return;
+  }
+  if (!dc || dc.readyState !== "open") {
+    addMSG("DataChannel dar neprijungtas.", "info");
+    return;
+  }
+
+  sending = true;
+  btnSendFrames.disabled = true;
+  btnStopFrames.disabled = false;
+
+  addMSG("Pradėtas kadrų siuntimas (frames).", "info");
+
+  sendTimer = setInterval(sendOneFrame, SEND_INTERVAL_MS);
+});
+
+btnStopFrames.addEventListener("click", function () {
+  sending = false;
+  btnStopFrames.disabled = true;
+  btnSendFrames.disabled = false;
+
+  if (sendTimer) clearInterval(sendTimer);
+  sendTimer = null;
+
+  addMSG("Kadrų siuntimas sustabdytas.", "info");
+});
+
+function sendOneFrame() {
+  if (!sending) return;
+  if (!dc || dc.readyState !== "open") return;
+
+  if (dc.bufferedAmount > 2_000_000) {
+    return;
+  }
+
+  frameCtx.drawImage(localVideo, 0, 0, frameCanvas.width, frameCanvas.height);
+
+  var dataUrl = frameCanvas.toDataURL("image/jpeg", JPEG_QUALITY);
+
+  dc.send("FRAME|" + dataUrl);
+}
 </script>
+
 </body>
 </html>
